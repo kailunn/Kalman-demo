@@ -1,38 +1,21 @@
 """
-Minimal 2D Kalman Filter Demo
-=============================
-Scenario: a robot moves across a 2D plane with approximately constant velocity.
-The only available sensor is a noisy GPS-like position measurement. The true
-position and velocity are hidden. The goal is to recursively estimate the
-robot's position and velocity with a Kalman Filter.
+Interactive 2D Kalman Filter Demo (local matplotlib window)
+==============================================================
+Same logic as kalman_demo.py, except the "GPS noise R" and
+"process noise Q" are now draggable sliders. Moving a slider
+recomputes the Kalman Filter and redraws the plot live.
 
-State vector x = [px, py, vx, vy]^T
-  px, py: position
-  vx, vy: velocity
-
-This is a small foundation for SLAM and sensor fusion:
-  1. Predict the next state with a motion model.
-  2. Update that prediction with a new measurement.
+Run it on your MacBook with:
+    python3 kalman_demo_interactive.py
+This opens a real matplotlib window (not a web page) with two
+sliders and a button underneath the chart.
 """
 
-import os
-from pathlib import Path
-
-cache_dir = Path(".cache")
-cache_dir.mkdir(exist_ok=True)
-os.environ.setdefault("MPLCONFIGDIR", str(cache_dir / "matplotlib"))
-os.environ.setdefault("XDG_CACHE_HOME", str(cache_dir))
-
 import numpy as np
-import matplotlib
-
-matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+from matplotlib.widgets import Slider, Button
 
-np.random.seed(42)
-
-# ---------- 1. Simulate the real world: a robot follows a curved path ----------
-dt = 0.1  # Time interval per step, in seconds
+dt = 0.1
 n_steps = 150
 
 t = np.arange(n_steps) * dt
@@ -40,83 +23,123 @@ true_px = 5 * np.sin(0.3 * t) + 0.5 * t
 true_py = 3 * np.cos(0.2 * t) + 0.3 * t
 true_positions = np.stack([true_px, true_py], axis=1)
 
-# ---------- 2. Simulate the sensor: GPS reading = true position + noise ----------
-gps_noise_std = 0.8  # GPS standard deviation in meters
-measurements = true_positions + np.random.normal(0, gps_noise_std, true_positions.shape)
-
-# ---------- 3. Initialize the Kalman Filter ----------
-# State transition matrix F: constant velocity motion model
 F = np.array([
     [1, 0, dt, 0],
     [0, 1, 0, dt],
     [0, 0, 1,  0],
     [0, 0, 0,  1],
 ])
-
-# Observation matrix H: only position (px, py) is observed, not velocity
 H = np.array([
     [1, 0, 0, 0],
     [0, 1, 0, 0],
 ])
 
-# Process noise Q: uncertainty in the motion model
-q = 0.005
-Q = q * np.eye(4)
 
-# Measurement noise R: uncertainty in the GPS readings
-R = (gps_noise_std ** 2) * np.eye(2)
+def generate_measurements(gps_noise_std, seed=42):
+    """Simulate GPS observations z = true position + noise.
+    Fixed seed so dragging the Q slider doesn't also change the noise pattern."""
+    rng = np.random.default_rng(seed)
+    return true_positions + rng.normal(0, gps_noise_std, true_positions.shape)
 
-# Initial state estimate and initial uncertainty
-x_est = np.array([measurements[0, 0], measurements[0, 1], 0, 0])
-P = np.eye(4) * 10  # Large covariance because the initial estimate is uncertain
 
-estimates = []
+def run_kalman_filter(measurements, q, gps_noise_std):
+    """Run one full predict -> update loop, returning the estimated position at each step."""
+    Q = q * np.eye(4)
+    R = (gps_noise_std ** 2) * np.eye(2)
 
-# ---------- 4. Main loop: predict, then update ----------
-for z in measurements:
-    # --- Predict ---
-    x_pred = F @ x_est
-    P_pred = F @ P @ F.T + Q
+    x_est = np.array([measurements[0, 0], measurements[0, 1], 0, 0])
+    P = np.eye(4) * 10
 
-    # --- Update ---
-    y = z - H @ x_pred                      # Innovation: measurement minus prediction
-    S = H @ P_pred @ H.T + R                # Innovation covariance
-    K = P_pred @ H.T @ np.linalg.inv(S)     # Kalman gain
+    estimates = []
+    for z in measurements:
+        x_pred = F @ x_est
+        P_pred = F @ P @ F.T + Q
 
-    x_est = x_pred + K @ y
-    P = (np.eye(4) - K @ H) @ P_pred
+        y = z - H @ x_pred
+        S = H @ P_pred @ H.T + R
+        K = P_pred @ H.T @ np.linalg.inv(S)
 
-    estimates.append(x_est.copy())
+        x_est = x_pred + K @ y
+        P = (np.eye(4) - K @ H) @ P_pred
+        estimates.append(x_est.copy())
 
-estimates = np.array(estimates)
+    return np.array(estimates)
 
-# ---------- 5. Visualize the true path, noisy GPS, and Kalman estimate ----------
-plt.figure(figsize=(8, 6))
-plt.plot(true_positions[:, 0], true_positions[:, 1],
-         label="Ground Truth (true path)", color="black", linewidth=2)
-plt.scatter(measurements[:, 0], measurements[:, 1],
-            label="Noisy GPS measurements", color="red", s=10, alpha=0.4)
-plt.plot(estimates[:, 0], estimates[:, 1],
-         label="Kalman Filter estimate", color="blue", linewidth=2)
 
-plt.xlabel("X (m)")
-plt.ylabel("Y (m)")
-plt.title("2D Kalman Filter: recovering the true trajectory from noisy GPS")
-plt.legend()
-plt.axis("equal")
-plt.grid(alpha=0.3)
-plt.tight_layout()
+def rmse(a, b):
+    return np.sqrt(np.mean(np.sum((a - b) ** 2, axis=1)))
 
-output_dir = Path("results")
-output_dir.mkdir(exist_ok=True)
-output_path = output_dir / "kalman_filter_demo.png"
-plt.savefig(output_path, dpi=150)
 
-# ---------- 6. Quantitative evaluation: compare GPS and Kalman accuracy ----------
-rmse_measurement = np.sqrt(np.mean(np.sum((measurements - true_positions) ** 2, axis=1)))
-rmse_estimate = np.sqrt(np.mean(np.sum((estimates[:, :2] - true_positions) ** 2, axis=1)))
+# ---------- Layout: main chart + two sliders + one button ----------
+fig, ax = plt.subplots(figsize=(8, 7))
+plt.subplots_adjust(bottom=0.28)
 
-print(f"Raw GPS measurement RMSE : {rmse_measurement:.3f} m")
-print(f"Kalman Filter RMSE       : {rmse_estimate:.3f} m")
-print(f"Error reduction          : {(1 - rmse_estimate/rmse_measurement) * 100:.1f}%")
-print(f"Saved visualization to   : {output_path}")
+init_r, init_q = 0.8, 0.05
+measurements = generate_measurements(init_r)
+estimates = run_kalman_filter(measurements, init_q, init_r)
+
+(line_true,) = ax.plot(true_positions[:, 0], true_positions[:, 1],
+                        color="black", linewidth=2, label="Ground truth")
+scatter_meas = ax.scatter(measurements[:, 0], measurements[:, 1],
+                           color="red", s=10, alpha=0.4, label="Noisy GPS")
+(line_est,) = ax.plot(estimates[:, 0], estimates[:, 1],
+                       color="blue", linewidth=2, label="Kalman estimate")
+
+ax.set_xlabel("X (m)")
+ax.set_ylabel("Y (m)")
+ax.axis("equal")
+ax.grid(alpha=0.3)
+ax.legend(loc="upper left")
+
+title = ax.set_title("")
+
+
+def update_title():
+    rz = rmse(measurements, true_positions)
+    rx = rmse(estimates, true_positions)
+    reduction = (1 - rx / rz) * 100
+    title.set_text(f"GPS RMSE {rz:.2f} m  |  Kalman RMSE {rx:.2f} m  |  error cut {reduction:.0f}%")
+
+
+update_title()
+
+# Slider: GPS noise R
+ax_r = plt.axes([0.15, 0.14, 0.65, 0.03])
+slider_r = Slider(ax_r, "GPS noise (R)", 0.1, 2.5, valinit=init_r, valstep=0.1)
+
+# Slider: process noise Q
+ax_q = plt.axes([0.15, 0.08, 0.65, 0.03])
+slider_q = Slider(ax_q, "Process noise (Q)", 0.001, 0.5, valinit=init_q, valstep=0.001)
+
+# Button: draw a fresh batch of noise
+ax_btn = plt.axes([0.82, 0.02, 0.12, 0.04])
+button_regen = Button(ax_btn, "Regenerate")
+
+
+def redraw(_event=None, regenerate_noise=False):
+    global measurements, estimates
+    r_val = slider_r.val
+    q_val = slider_q.val
+
+    if regenerate_noise:
+        # Bump the seed on each button click, i.e. draw a fresh batch of noise
+        redraw.seed_counter += 1
+        measurements = generate_measurements(r_val, seed=redraw.seed_counter)
+    else:
+        measurements = generate_measurements(r_val, seed=redraw.seed_counter)
+
+    estimates = run_kalman_filter(measurements, q_val, r_val)
+
+    scatter_meas.set_offsets(measurements)
+    line_est.set_data(estimates[:, 0], estimates[:, 1])
+    update_title()
+    fig.canvas.draw_idle()
+
+
+redraw.seed_counter = 42
+
+slider_r.on_changed(redraw)
+slider_q.on_changed(redraw)
+button_regen.on_clicked(lambda event: redraw(event, regenerate_noise=True))
+
+plt.show()
