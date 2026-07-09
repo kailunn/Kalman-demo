@@ -12,7 +12,9 @@ true trajectory.
 ├── main.py
 ├── README.md
 ├── requirements.txt
-└── kalman_filter_predict_update_loop.png
+├── kalman_filter_predict_update_loop.png
+└── results/
+    └── kalman_filter_demo.png
 ```
 
 ## How It Works
@@ -32,6 +34,8 @@ A Kalman Filter runs in two repeated steps:
 
 1. **Predict**: estimate the next state using the motion model.
 2. **Update**: correct the prediction using the newest noisy measurement.
+
+![Kalman Filter predict-update loop](kalman_filter_predict_update_loop.png)
 
 The filter balances two sources of information: the predicted motion and the
 sensor measurement. When the GPS readings are noisy, the Kalman estimate is
@@ -64,9 +68,9 @@ underneath it.
 ## Demo
 
 When you run the Python script, the matplotlib window shows the Kalman Filter
-result and the interactive controls:
+trajectory result and the interactive controls:
 
-![Kalman Filter interactive demo](kalman_filter_predict_update_loop.png)
+![Kalman Filter trajectory demo](results/kalman_filter_demo.png)
 
 The black curve is the true trajectory, the red points are noisy GPS
 measurements, and the blue curve is the Kalman Filter estimate. The title shows
