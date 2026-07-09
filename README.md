@@ -61,6 +61,17 @@ python main.py
 This opens a local matplotlib window with the trajectory plot and a control bar
 underneath it.
 
+## Demo
+
+When you run the Python script, the matplotlib window shows the Kalman Filter
+result and the interactive controls:
+
+![Kalman Filter interactive demo](kalman_filter_predict_update_loop.png)
+
+The black curve is the true trajectory, the red points are noisy GPS
+measurements, and the blue curve is the Kalman Filter estimate. The title shows
+the current GPS RMSE, Kalman Filter RMSE, and error reduction.
+
 ## Control Bar
 
 The control bar lets you change the filter behavior without restarting the
@@ -76,10 +87,3 @@ program:
 
 The chart title updates after each change with the raw GPS RMSE, Kalman Filter
 RMSE, and error reduction.
-
-## Result Visualization
-
-![Kalman Filter predict-update loop](kalman_filter_predict_update_loop.png)
-
-The black curve is the true trajectory, the red points are noisy GPS
-measurements, and the blue curve is the Kalman Filter estimate.
