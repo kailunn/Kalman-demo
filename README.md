@@ -1,8 +1,9 @@
 # Kalman Filter Demo
 
-This project is a minimal 2D Kalman Filter demonstration in Python. It simulates
-a robot moving along a curved path, adds noisy GPS-like measurements, and uses a
-Kalman Filter to recover a smoother estimate of the true trajectory.
+This project is a minimal interactive 2D Kalman Filter demonstration in Python.
+It simulates a robot moving along a curved path, adds noisy GPS-like
+measurements, and uses a Kalman Filter to recover a smoother estimate of the
+true trajectory.
 
 ## Project Structure
 
@@ -11,8 +12,7 @@ Kalman Filter to recover a smoother estimate of the true trajectory.
 ├── main.py
 ├── README.md
 ├── requirements.txt
-└── results/
-    └── kalman_filter_demo.png
+└── kalman_filter_predict_update_loop.png
 ```
 
 ## How It Works
@@ -58,16 +58,28 @@ pip install -r requirements.txt
 python main.py
 ```
 
-The script prints the RMSE of the raw GPS measurements and the Kalman Filter
-estimate. It also saves the visualization to:
+This opens a local matplotlib window with the trajectory plot and a control bar
+underneath it.
 
-```text
-results/kalman_filter_demo.png
-```
+## Control Bar
+
+The control bar lets you change the filter behavior without restarting the
+program:
+
+- `GPS noise (R)`: changes the simulated GPS measurement noise. Higher values
+  make the red GPS points more scattered.
+- `Process noise (Q)`: changes how much uncertainty the filter assigns to the
+  motion model. Higher values make the blue estimate respond more quickly to
+  measurements.
+- `Regenerate`: draws a fresh batch of random GPS noise using the current slider
+  values.
+
+The chart title updates after each change with the raw GPS RMSE, Kalman Filter
+RMSE, and error reduction.
 
 ## Result Visualization
 
-![2D Kalman Filter result](results/kalman_filter_demo.png)
+![Kalman Filter predict-update loop](kalman_filter_predict_update_loop.png)
 
 The black curve is the true trajectory, the red points are noisy GPS
 measurements, and the blue curve is the Kalman Filter estimate.
